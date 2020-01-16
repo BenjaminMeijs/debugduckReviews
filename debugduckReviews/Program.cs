@@ -26,29 +26,39 @@ namespace debugduckReviews
     }
     class Program
     {
-        public static string RreviewPath = "";
-        public static string RproductPath = "";
-        public static string WproductPath = "";
+        
+        public static string RreviewPath = "C:\\Users\\benja\\source\\repos\\debugduckReviews\\debugduckReviews\\review.csv";
+        public static string RproductPath = "C:\\Users\\benja\\source\\repos\\debugduckReviews\\debugduckReviews\\product.csv";
+        public static string WproductPath = "C:\\Users\\benja\\source\\repos\\debugduckReviews\\debugduckReviews\\newproduct.csv";
+        public static string RWphpProducts = "C:\\Users\\benja\\source\\repos\\debugduckReviews\\debugduckReviews\\en_products.php";
         static void Main(string[] args)
         {
             using var reviewReader = new StreamReader(RreviewPath);
             using var productReader = new StreamReader(RproductPath);
             using var reviewCSV = new CsvReader(reviewReader);
             using var productCSV = new CsvReader(productReader);
+            reviewCSV.Configuration.Delimiter = "\t";
+            productCSV.Configuration.Delimiter = "\t";
 
             List<Review> reviews = reviewCSV.GetRecords<Review>().ToList();
             List<Product> products = productCSV.GetRecords<Product>().ToList();
             //calculate the star average
             foreach (Product product in products)
             {
-                product.ReviewAverage = reviews
+                product.ReviewAverage = (reviews
                     .Where(r => r.ProductID == product.ProductID)
-                    .Sum(r => int.Parse(r.ReviewStars)).ToString();
+                    .Average(r => int.Parse(r.ReviewStars))).ToString();
 
-                string averageRating = new String('★', int.Parse(product.ReviewAverage));
+                string HTMLproductDescription = $@"
+    <div class='productDescription'>
+    {product.ProductDescription}
+    </div>
+";
+                string averageRating = new string('★', int.Parse(product.ReviewAverage));
+                string formURL = $"https://docs.google.com/forms/d/e/1FAIpQLSeyIh7aT-knRiInv46M9P48kAhQANf74R3V7lC64mIhJqNErQ/viewform?usp=pp_url&entry.117829278={product.ProductID}";
                 string HTMLreviewHeader = $@"
 <div class='reviewHeader'>
-    <a href='https://docs.google.com/forms/d/e/1FAIpQLSeyIh7aT-knRiInv46M9P48kAhQANf74R3V7lC64mIhJqNErQ/viewform?usp=pp_url&entry.117829278='  target='_blank'>
+    <a href='{formURL}'  target='_blank'>
         Leave a review
     </a>
     <br>
@@ -80,12 +90,30 @@ namespace debugduckReviews
 </div>
 ";
                 }
-                product.HTMLoutput = HTMLreviewHeader + HTMLreviews;
+                string HTMLresult = (HTMLproductDescription + HTMLreviewHeader + HTMLreviews)
+                    .Replace(Environment.NewLine,String.Empty)
+                    .Replace("\t", String.Empty)
+                    .Replace(";", string.Empty)
+                    .Replace("{", string.Empty)
+                    .Replace("}",string.Empty);
+                product.HTMLoutput = HTMLresult;
             }
 
             using var writer = new StreamWriter(WproductPath);
-            using var csv = new CsvWriter(writer);
-            csv.WriteRecords(products);
+            using var productWriter = new CsvWriter(writer);
+            productWriter.Configuration.Delimiter = "\t";
+            productWriter.WriteRecords(products);
+
+
+            string phpText = File.ReadAllText(RWphpProducts);
+            foreach (Product product in products)
+            {
+                string find = $"<p>[{product.ProductID}]</p>";
+                string replace = product.HTMLoutput;
+                phpText = phpText.Replace(find, replace);
+            }
+            
+            File.WriteAllText(RWphpProducts, phpText);
         }
     }
 }
